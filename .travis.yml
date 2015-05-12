@@ -1,8 +1,18 @@
+sudo: false
 language: c
 compiler: gcc
-install:
-- bash -e ${TRAVIS_BUILD_DIR}/.travis.yml.install
 script:
-- bash -e ${TRAVIS_BUILD_DIR}/.travis.yml.script
-after_success:
-- bash -e ${TRAVIS_BUILD_DIR}/.travis.yml.after_success
+- cd skarnet-builder && ./build-wrapper
+deploy:
+  provider: releases
+  skip_cleanup: true
+  api_key:
+    secure: SEVQpwVfvPJIGuSYV+vq93j5IizomI9tYoA0eUw1gGN3pJRyTiwUCYkVvY7nZ7Zm6kIpycF4pNrGzd1f06p7sFO6lB3Pcjup7NODsrPuuINf01IqdFQ6FdtVOulDMpRT251AHfSBv0CApbpn9z/kFY7bURFDQ5R+TGzLFgzkePqtKrjlMVQxOJloUeKnBHQ/xaoh1IWm9l/iYMf4P/opTzBe6eeaKl3jYhcjQEQOL63dGO+KhcMbqAdFdHC86yqRmRMux0Dn99QF+5a1txy31722iaulNXxMO4M2ozgtjmAo1cIblJZpvN9S6e7c4opcjhkYJ2+lr/7K/TpDfnCESC3iDZKdBgl31+olX6Fr6dlHHUo2RWu12lvhE2at2dzWgOn+GbFZW6Dt1D7MOupJq9LmpWtrZpgwXLMMJUCptN/gevoNauBA3VvySralxJ2dMOIz80yUChKIVkLCLMQuYoaaHq0ZOXYbnoNAtB1SSSpB37AhNnTokTp6p9coh53oLa4dtpzXpD762W1bsjQVGfIWfpBgjAmDDvfyjfXlJG8TsAmXUbdTZr/9UpEY1vlAY8YePLr/gfU82fxJTTLKzJWqURuPjavNzNedsX2gLUVMTuv2yaNoeWJpfCtpDaZ/WVRyEIWJHqthygmOEdAVIK2fyRdDmBkTpNH+rdbfgug=
+  file:
+    - $HOME/dist/manifest*.txt
+    - $HOME/dist/*.tar.gz
+  file_glob: true
+  on:
+    repo: mubiic/s6-suite
+    branch: master
+    tags: true
