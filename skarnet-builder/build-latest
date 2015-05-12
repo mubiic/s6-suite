@@ -1,4 +1,4 @@
-#!/usr/bin/env bash 
+#!/usr/bin/env bash
 set -e
 set -x
 
@@ -37,7 +37,7 @@ s6-portable-utils
 # software versions
 declare -A versions
 versions[make]=4.1
-versions[linux]=3.18.5
+versions[linux]=3.19
 versions[musl]=1.0.5
 versions[skalibs]=2.3.8.3
 versions[execline]=2.1.4.5
