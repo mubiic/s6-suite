@@ -1,0 +1,194 @@
+#!/usr/bin/env bash 
+set -e
+set -x
+
+BUILDDIR=$HOME/build
+PACKAGEDIR=$HOME/pkg
+DISTDIR=$HOME/dist
+PATCHDIR="$(pwd)/patches"
+
+mkdir -p "$BUILDDIR" "$PACKAGEDIR" "$DISTDIR"
+
+# point to make
+MAKE_4x="$PACKAGEDIR/make/bin/make"
+
+# all packages
+skarnet_all_packages=(
+skalibs
+execline
+s6
+s6-portable-utils
+s6-linux-utils
+s6-dns
+s6-networking
+)
+
+# linux packages
+skarnet_linux_packages=("${skarnet_all_packages[@]}")
+
+# portable packages
+skarnet_portable_packages=(
+skalibs
+execline
+s6
+s6-portable-utils
+)
+
+# software versions
+declare -A versions
+versions[make]=4.1
+versions[linux]=3.18.5
+versions[musl]=1.0.5
+versions[skalibs]=2.3.5.1
+versions[execline]=2.1.2.2
+versions[s6]=2.1.3.0
+versions[s6-portable-utils]=2.0.5.0
+versions[s6-linux-utils]=2.0.2.0
+versions[s6-dns]=2.0.0.3
+versions[s6-networking]=2.1.0.1
+
+declare -A includes
+includes[skalibs]="--with-include=$PACKAGEDIR/musl/include"
+includes[execline]="--with-include=$PACKAGEDIR/skalibs/usr/include ${includes[skalibs]}"
+includes[s6]="--with-include=$PACKAGEDIR/execline/usr/include ${includes[execline]}"
+includes[s6-portable-utils]="${includes[s6]}"
+includes[s6-linux-utils]="--with-include=$PACKAGEDIR/linux-headers/include ${includes[s6]}"
+includes[s6-dns]="${includes[s6]}"
+includes[s6-networking]="--with-include=$PACKAGEDIR/s6-dns/usr/include --with-include=$PACKAGEDIR/s6/usr/include ${includes[s6]}"
+
+declare -A libs
+libs[skalibs]="--with-lib=/usr/musl/lib"
+libs[execline]="--with-lib=$PACKAGEDIR/skalibs/usr/lib ${libs[skalibs]}"
+libs[s6]="--with-lib=$PACKAGEDIR/execline/usr/lib ${libs[execline]}"
+libs[s6-portable-utils]="${libs[s6]}"
+libs[s6-linux-utils]="${libs[s6]}"
+libs[s6-dns]="${libs[s6]}"
+libs[s6-networking]="--with-lib=$PACKAGEDIR/s6-dns/usr/lib --with-lib=$PACKAGEDIR/s6/usr/lib ${libs[s6]}"
+
+declare -A sysdeps
+sysdeps[skalibs]=""
+sysdeps[execline]="--with-sysdeps=$PACKAGEDIR/skalibs/usr/lib/skalibs/sysdeps"
+sysdeps[s6]="${sysdeps[execline]}"
+sysdeps[s6-portable-utils]="${sysdeps[execline]}"
+sysdeps[s6-linux-utils]="${sysdeps[execline]}"
+sysdeps[s6-dns]="${sysdeps[execline]}"
+sysdeps[s6-networking]="${sysdeps[execline]}"
+
+declare -A configopts
+configopts[skalibs]="--datadir=/etc --enable-force-devr"
+configopts[execline]=""
+configopts[s6]=""
+configopts[s6-portable-utils]=""
+configopts[s6-dns]=""
+configopts[s6-networking]=""
+
+declare -A manifests
+manifests[skarnet_all_packages]="manifest.txt"
+manifests[skarnet_linux_packages]="manifest-linux.txt"
+manifests[skarnet_portable_packages]="manifest-portable.txt"
+
+build_install_skarnet_package() {
+    local package=$1
+    cd "$BUILDDIR"
+    curl -R -L -O -C - "http://skarnet.org/software/${package}/${package}-${versions[$package]}.tar.gz"
+    tar xf "${package}-${versions[$package]}.tar.gz"
+    cd "${package}-${versions[$package]}"
+    CC="$PACKAGEDIR/musl/bin/musl-gcc" ./configure \
+      --prefix=/usr \
+      --libdir=/usr/lib \
+      --enable-static \
+      --disable-shared \
+      --enable-static-libc \
+      ${includes[$package]} \
+      ${libs[$package]} \
+      ${sysdeps[$package]} \
+      ${configopts[$package]}
+    ${MAKE_4x}
+    ${MAKE_4x} DESTDIR="$PACKAGEDIR/${package}" install
+}
+
+tar_skarnet_package() {
+    local package=$1
+    if [[ -d "$PACKAGEDIR/${package}/usr/bin" ]]; then
+        find "$PACKAGEDIR/${package}/usr/bin" -type f -exec strip {} \;
+    fi
+
+    tar -czf "$DISTDIR/${package}-${versions[$package]}-linux-amd64-bin.tar.gz" \
+      --owner 0 \
+      --group 0 \
+      --exclude "usr/lib" \
+      --exclude "usr/include" \
+      -C "$PACKAGEDIR/${package}" .
+
+    local dev_dirs=""
+    if [[ -d "$PACKAGEDIR/${package}/usr/lib" ]]; then
+        dev_dirs="usr/lib"
+    fi
+    if [[ -d "$PACKAGEDIR/${package}/usr/include" ]]; then
+        dev_dirs="${dev_dirs} usr/include"
+    fi
+    if [[ -n "${dev_dirs}" ]]; then
+        tar -czf "$DISTDIR/${package}-${versions[$package]}-linux-amd64-dev.tar.gz" \
+          --owner 0 \
+          --group 0 \
+        -C "$PACKAGEDIR/${package}" $dev_dirs
+    fi
+}
+
+# install make
+cd "$BUILDDIR"
+curl -R -L -O http://ftp.gnu.org/gnu/make/make-${versions[make]}.tar.gz
+tar xf make-${versions[make]}.tar.gz
+cd make-${versions[make]}
+
+./configure --prefix="$PACKAGEDIR/make"
+make
+make install
+
+# install musl
+cd "$BUILDDIR"
+curl -R -L -O http://www.musl-libc.org/releases/musl-${versions[musl]}.tar.gz
+tar xf musl-${versions[musl]}.tar.gz
+cd musl-${versions[musl]}
+
+CFLAGS="-fno-toplevel-reorder -fno-stack-protector" \
+  ./configure                                       \
+    --prefix=$PACKAGEDIR/musl                       \
+    --disable-shared
+${MAKE_4x}
+${MAKE_4x} install
+
+# install linux-headers
+cd "$BUILDDIR"
+curl -R -L -O -C - http://www.kernel.org/pub/linux/kernel/v3.x/linux-${versions[linux]}.tar.xz
+tar xf linux-${versions[linux]}.tar.xz
+cd linux-${versions[linux]}
+for i in $PATCHDIR/linux/*.patch; do
+    patch -p1 -i "${i}" || true
+done
+make headers_install ARCH="$(uname -m)" INSTALL_HDR_PATH="$PACKAGEDIR/linux-headers" CC="$PACKAGEDIR/musl/bin/musl-gcc"
+
+# install skarnet packages
+for package in "${skarnet_all_packages[@]}"; do
+    build_install_skarnet_package ${package}
+    tar_skarnet_package ${package}
+done
+
+# generate release.md
+echo "Built using \`make-${versions[make]}\`, \`musl-${versions[musl]}\` and \`linux-headers-${versions[linux]}\`" >> $DISTDIR/release.md
+echo "" >> $DISTDIR/release.md
+echo "| Software | Version |" >> $DISTDIR/release.md
+echo "| -------- |:-------:|" >> $DISTDIR/release.md
+for package in "${skarnet_all_packages[@]}"; do
+  echo "| ${package} | ${versions[${package}]} |" >> $DISTDIR/release.md
+done
+
+# generate manifests
+for i in "${!manifests[@]}"; do
+  file="$DISTDIR/${manifests[${i}]}"
+  packages="$i[@]"
+  for package in "${!packages}"; do
+    echo "${package}=${versions[${package}]}" >> $file
+  done
+  echo "" >> $file
+done
