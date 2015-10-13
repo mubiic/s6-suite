@@ -14,5 +14,7 @@ versions[s6-networking]=2.1.0.1
 ```
 as `v1.A0` to
 versions[linux]=3.19  as `v1.A1`
+... ...
+tag `v1.15.0`  as `v1.A5`
 
 Credits: https://github.com/glerchundi
