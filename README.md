@@ -1,4 +1,4 @@
-# S6 Init Suite [![Build Status](https://travis-ci.org/mubiic/s6-suite.svg)](https://github.com/mubiic/s6-suite)
+# S6 Init Suite [![Build Status](https://travis-ci.org/mubiic/s6-suite.svg)](https://travis-ci.org/mubiic/s6-suite)
 Updated from tag `v1.10.0` https://github.com/just-containers/skaware:
 ```
 versions[make]=4.1
@@ -14,7 +14,7 @@ versions[s6-networking]=2.1.0.1
 ```
 as `v1.A0` to
 versions[linux]=3.19  as `v1.A1`
-... ...
-tag `v1.16.0`  as `v1.A6`
+... ...  
+tag `v1.17.1`  as `v1.A7`
 
 Credits: https://github.com/glerchundi
