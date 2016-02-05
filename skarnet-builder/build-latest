@@ -39,9 +39,10 @@ declare -A versions
 versions[make]=4.1
 versions[linux]=3.18.5
 versions[musl]=1.0.5
-versions[skalibs]=2.3.8.0
-versions[execline]=2.1.4.2
-versions[s6]=2.2.2.0
+versions[skalibs]=2.3.8.3
+versions[execline]=2.1.4.5
+#versions[s6]=2.2.4.0
+versions[s6]=eeb0f9098450dbe470fc9b60627d15df62b04239
 versions[s6-portable-utils]=2.0.5.3
 versions[s6-linux-utils]=2.0.2.3
 versions[s6-dns]=2.0.0.7
@@ -89,12 +90,18 @@ manifests[skarnet_portable_packages]="manifest-portable.txt"
 
 build_install_skarnet_package() {
     local package=$1
+    local version=${versions[$package]}
+
     cd "$BUILDDIR"
-    curl -R -L -O -C - "http://skarnet.org/software/${package}/${package}-${versions[$package]}.tar.gz"
-    tar xf "${package}-${versions[$package]}.tar.gz"
-    cd "${package}-${versions[$package]}"
+
+    git clone git://git.skarnet.org/${package}
+    cd ${package}
+    if [[ ${version} =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+      version=$(git rev-list -n 1 v${version})
+    fi
+    git reset --hard ${version}
+    
     CC="$PACKAGEDIR/musl/bin/musl-gcc" ./configure \
-      --prefix=/usr \
       --libdir=/usr/lib \
       --enable-static \
       --disable-shared \
@@ -175,20 +182,23 @@ for package in "${skarnet_all_packages[@]}"; do
 done
 
 # generate release.md
-echo "Built using \`make-${versions[make]}\`, \`musl-${versions[musl]}\` and \`linux-headers-${versions[linux]}\`" >> $DISTDIR/release.md
-echo "" >> $DISTDIR/release.md
-echo "| Software | Version |" >> $DISTDIR/release.md
-echo "| -------- |:-------:|" >> $DISTDIR/release.md
+releasemsg=""
+releasemsg+="Built using \`make-${versions[make]}\`, \`musl-${versions[musl]}\` and \`linux-headers-${versions[linux]}\`\n"
+releasemsg+="\n"
+releasemsg+="| Software | Version |\n"
+releasemsg+="| -------- |:-------:|\n"
 for package in "${skarnet_all_packages[@]}"; do
-  echo "| ${package} | ${versions[${package}]} |" >> $DISTDIR/release.md
+  releasemsg+="| ${package} | ${versions[${package}]} |\n"
 done
+releasemsg+="\n"
+echo -e ${releasemsg} > $DISTDIR/release.md
 
 # generate manifests
 for i in "${!manifests[@]}"; do
-  file="$DISTDIR/${manifests[${i}]}"
+  manifest=""
   packages="$i[@]"
   for package in "${!packages}"; do
-    echo "${package}=${versions[${package}]}" >> $file
+    manifest+="${package}=${versions[${package}]}\n"
   done
-  echo "" >> $file
+  echo -e ${manifest} > $DISTDIR/${manifests[${i}]}
 done
